@@ -1,0 +1,17 @@
+version: 2
+ethernets:
+{% for iface in item.interfaces %}
+  ens{{ loop.index + 2 }}:
+    match:
+      macaddress: "{{ iface.mac }}"
+    set-name: ens{{ loop.index + 2 }}
+    addresses:
+      - {{ iface.ip }}
+{% if iface.gateway is defined %}
+    routes:
+      - to: default
+        via: {{ iface.gateway }}
+    nameservers:
+      addresses: [1.1.1.1, 8.8.8.8]
+{% endif %}
+{% endfor %}
