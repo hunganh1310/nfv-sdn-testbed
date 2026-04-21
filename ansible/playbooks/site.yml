@@ -1,0 +1,8 @@
+---
+- name: "Provision libvirt networks on the hypervisor"
+  hosts: hypervisors
+  gather_facts: true
+  become: true
+
+  roles:
+    - role: libvirt_network

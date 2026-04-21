@@ -1,0 +1,3 @@
+---
+libvirt_network_state: present   # present | absent
+libvirt_uri: "qemu:///system"
