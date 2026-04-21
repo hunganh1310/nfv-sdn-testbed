@@ -1,0 +1,107 @@
+# ============================================================
+#  NFV/SDN Testbed — .gitignore
+#  Never commit: secrets, binaries, VM images, caches, state
+# ============================================================
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Editor / IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.history/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node (ONOS apps / dashboards build) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Ansible ---
+*.retry
+ansible/.vault_pass
+ansible/vault_pass.txt
+ansible/host_vars/*/vault.yml
+ansible/group_vars/*/vault.yml
+*.vault
+
+# --- Terraform ---
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!example.tfvars
+crash.log
+override.tf
+override.tf.json
+
+# --- Secrets & credentials ---
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
+*openrc*
+!*openrc*.example
+clouds.yaml
+!clouds.yaml.example
+secrets/
+credentials/
+
+# --- VM images & disks (HUGE — never commit) ---
+vm-images/*
+!vm-images/.gitkeep
+!vm-images/README.md
+*.qcow2
+*.img
+*.iso
+*.vdi
+*.vmdk
+*.raw
+
+# --- Logs ---
+*.log
+logs/
+*.out
+
+# --- Build artifacts / packages ---
+dist/
+build/
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+
+# --- OSM packages (built artifacts) ---
+vnf-packages/**/*.tar.gz
+vnf-packages/**/build/
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Local overrides ---
+local/
+tmp/
+temp/
+scratch/
