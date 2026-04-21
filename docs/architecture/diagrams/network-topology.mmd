@@ -1,0 +1,46 @@
+flowchart TB
+    subgraph HOST["WSL2 Ubuntu 22.04 (libvirt/KVM host)"]
+        direction TB
+
+        subgraph BR["Virtual Bridges"]
+            MGMT["virbr-mgmt<br/>VLAN 10<br/>10.10.10.0/24"]
+            DATA["virbr-data<br/>VLAN 20<br/>10.10.20.0/24"]
+            EXT["virbr-ext<br/>VLAN 30<br/>10.10.30.0/24"]
+        end
+
+        subgraph N0["Node-0 — Controller + OSM"]
+            N0_SVC["Keystone • Nova-API<br/>Neutron-server • Glance<br/>OSM (NBI/LCM/RO)"]
+            N0_IP["mgmt: 10.10.10.10<br/>data: 10.10.20.10<br/>ext:  10.10.30.10"]
+        end
+
+        subgraph N1["Node-1 — Compute + Network"]
+            N1_SVC["Nova-compute • OVS<br/>Neutron L3/DHCP/Metadata<br/>Nested KVM"]
+            N1_IP["mgmt: 10.10.10.11<br/>data: 10.10.20.11<br/>ext:  10.10.30.11"]
+        end
+
+        subgraph N2["Node-2 — SDN + Monitoring"]
+            N2_SVC["ONOS Controller<br/>Prometheus • Grafana<br/>Suricata • Zeek"]
+            N2_IP["mgmt: 10.10.10.12<br/>data: 10.10.20.12<br/>ext:  10.10.30.12"]
+        end
+
+        MGMT --- N0
+        MGMT --- N1
+        MGMT --- N2
+
+        DATA --- N0
+        DATA --- N1
+        DATA --- N2
+
+        EXT --- N0
+        EXT --- N1
+        EXT --- N2
+    end
+
+    INTERNET(["Internet / Windows Host"])
+    EXT -.NAT egress.-> INTERNET
+    MGMT -.SSH from host.-> INTERNET
+
+    classDef plane fill:#eef,stroke:#447,stroke-width:2px;
+    classDef node  fill:#efe,stroke:#484,stroke-width:2px;
+    class MGMT,DATA,EXT plane;
+    class N0,N1,N2 node;
