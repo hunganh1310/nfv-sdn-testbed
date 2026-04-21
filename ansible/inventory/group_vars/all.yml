@@ -1,0 +1,45 @@
+---
+# =============================================================================
+# NFV/SDN Testbed — Global Variables
+# =============================================================================
+
+lab_name: nfv-sdn-testbed
+
+# -----------------------------------------------------------------------------
+# libvirt networks (consumed by role: libvirt_network)
+# -----------------------------------------------------------------------------
+libvirt_networks:
+
+  - name: mgmt
+    bridge: virbr-mgmt
+    forward_mode: nat
+    cidr: 10.10.10.0/24
+    gateway: 10.10.10.1
+    netmask: 255.255.255.0
+    dhcp:
+      enabled: true
+      start: 10.10.10.100
+      end:   10.10.10.200
+    autostart: true
+
+  - name: data
+    bridge: virbr-data
+    forward_mode: none          # isolated; no host routing
+    cidr: 10.10.20.0/24
+    gateway: 10.10.20.1
+    netmask: 255.255.255.0
+    dhcp:
+      enabled: false
+    autostart: true
+
+  - name: ext
+    bridge: virbr-ext
+    forward_mode: nat
+    cidr: 10.10.30.0/24
+    gateway: 10.10.30.1
+    netmask: 255.255.255.0
+    dhcp:
+      enabled: true
+      start: 10.10.30.100
+      end:   10.10.30.200
+    autostart: true

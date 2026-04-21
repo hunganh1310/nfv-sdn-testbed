@@ -1,0 +1,51 @@
+---
+- name: "Ensure libvirtd is running"
+  ansible.builtin.systemd:
+    name: libvirtd
+    state: started
+    enabled: true
+
+- name: "Render network XML definitions"
+  ansible.builtin.template:
+    src: network.xml.j2
+    dest: "/tmp/libvirt-net-{{ item.name }}.xml"
+    mode: "0644"
+  loop: "{{ libvirt_networks }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Define libvirt networks (idempotent)"
+  community.libvirt.virt_net:
+    name: "{{ item.name }}"
+    command: define
+    xml: "{{ lookup('template', 'network.xml.j2') }}"
+    uri: "{{ libvirt_uri }}"
+  loop: "{{ libvirt_networks }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Set autostart flag on networks"
+  community.libvirt.virt_net:
+    name: "{{ item.name }}"
+    autostart: "{{ item.autostart | default(true) }}"
+    uri: "{{ libvirt_uri }}"
+  loop: "{{ libvirt_networks }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Start (activate) libvirt networks"
+  community.libvirt.virt_net:
+    name: "{{ item.name }}"
+    state: active
+    uri: "{{ libvirt_uri }}"
+  loop: "{{ libvirt_networks }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Clean up temporary XML files"
+  ansible.builtin.file:
+    path: "/tmp/libvirt-net-{{ item.name }}.xml"
+    state: absent
+  loop: "{{ libvirt_networks }}"
+  loop_control:
+    label: "{{ item.name }}"
