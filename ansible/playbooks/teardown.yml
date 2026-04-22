@@ -1,0 +1,26 @@
+---
+- name: "Tear down libvirt networks on the hypervisor"
+  hosts: hypervisors
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: "Destroy (stop) libvirt networks if active"
+      community.libvirt.virt_net:
+        name: "{{ item.name }}"
+        state: inactive
+        uri: "qemu:///system"
+      loop: "{{ libvirt_networks }}"
+      loop_control:
+        label: "{{ item.name }}"
+      failed_when: false
+
+    - name: "Undefine (delete) libvirt networks"
+      community.libvirt.virt_net:
+        name: "{{ item.name }}"
+        command: undefine
+        uri: "qemu:///system"
+      loop: "{{ libvirt_networks }}"
+      loop_control:
+        label: "{{ item.name }}"
+      failed_when: false

@@ -1,0 +1,19 @@
+---
+all:
+  children:
+    k3s_cluster:
+      children:
+        k3s_server:
+          hosts:
+            node-0:
+              ansible_host: 10.10.10.10
+        k3s_agent:
+          hosts:
+            node-1:
+              ansible_host: 10.10.10.11
+            node-2:
+              ansible_host: 10.10.10.12
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'

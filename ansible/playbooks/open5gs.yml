@@ -1,0 +1,20 @@
+---
+- name: "Phase 3 — Deploy Open5GS via Helm"
+  hosts: k3s_server
+  become: true
+  tasks:
+    - name: "Deploy Open5GS via OCI"
+      ansible.builtin.command: >
+        /snap/bin/helm upgrade --install open5gs oci://registry-1.docker.io/gradiantcharts/open5gs 
+        --namespace core --create-namespace --version 2.3.4
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: "Wait for Open5GS MME/AMF to be ready"
+      ansible.builtin.command: >
+        k3s kubectl wait --namespace core 
+        --for=condition=ready pod 
+        --selector=app.kubernetes.io/name=open5gs-amf 
+        --timeout=300s
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml

@@ -1,0 +1,65 @@
+---
+# =============================================================================
+# teardown-vms.yml — Destroy and remove all lab VMs + artifacts
+# =============================================================================
+#
+# Usage:
+#   ansible-playbook playbooks/teardown-vms.yml
+#
+# Safe to run multiple times (idempotent).
+# Does NOT remove libvirt networks — use teardown.yml for that.
+# =============================================================================
+
+- name: "Tear down lab virtual machines"
+  hosts: hypervisors
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: "Destroy (power-off) VMs if running"
+      community.libvirt.virt:
+        name: "{{ item.name }}"
+        state: destroyed
+        uri: "qemu:///system"
+      loop: "{{ libvirt_vms }}"
+      loop_control:
+        label: "{{ item.name }}"
+      failed_when: false
+
+    - name: "Undefine (delete) VM domains"
+      community.libvirt.virt:
+        name: "{{ item.name }}"
+        command: undefine
+        uri: "qemu:///system"
+      loop: "{{ libvirt_vms }}"
+      loop_control:
+        label: "{{ item.name }}"
+      failed_when: false
+
+    - name: "Remove VM overlay disks"
+      ansible.builtin.file:
+        path: "{{ lab_images_dir }}/{{ item.name }}.qcow2"
+        state: absent
+      loop: "{{ libvirt_vms }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: "Remove cloud-init seed ISOs"
+      ansible.builtin.file:
+        path: "{{ lab_images_dir }}/{{ item.name }}-seed.iso"
+        state: absent
+      loop: "{{ libvirt_vms }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: "Cleanup any leftover cloud-init temp dirs"
+      ansible.builtin.file:
+        path: "/tmp/cloud-init-{{ item.name }}"
+        state: absent
+      loop: "{{ libvirt_vms }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: "Summary"
+      ansible.builtin.debug:
+        msg: "All {{ libvirt_vms | length }} VMs have been torn down. Networks are untouched."

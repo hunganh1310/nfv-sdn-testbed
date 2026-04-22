@@ -1,0 +1,6 @@
+---
+- name: "Phase 4 — SDN Control Plane (ONOS)"
+  hosts: k3s_server
+  become: true
+  roles:
+    - role: sdn

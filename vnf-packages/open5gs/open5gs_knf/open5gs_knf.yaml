@@ -1,0 +1,21 @@
+vnfd:
+  id: open5gs_knf
+  name: open5gs_knf
+  description: "Open5GS Cloud Native Network Function (KNF)"
+  mgmt-cp: mgmt-ext
+  ext-cpd:
+    - id: mgmt-ext
+      int-cpd:
+        cpd: mgmt-ext
+        vdu-id: helm-vdu
+  vdu:
+    - id: helm-vdu
+      name: helm-vdu
+      int-cpd:
+        - id: mgmt-ext
+  kdu:
+    - name: open5gs
+      helm-chart: "open5gs/open5gs"
+      helm-version: "v3"
+  df:
+    - id: default-df

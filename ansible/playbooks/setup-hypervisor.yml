@@ -1,0 +1,162 @@
+---
+# =============================================================================
+# setup-hypervisor.yml — Install all prerequisites on the WSL2/libvirt host
+# =============================================================================
+#
+# Run this ONCE before running site.yml for the first time.
+#
+# Usage:
+#   ansible-playbook playbooks/setup-hypervisor.yml
+# =============================================================================
+
+- name: "Prepare WSL2 hypervisor for NFV/SDN testbed"
+  hosts: hypervisors
+  gather_facts: true
+  become: true
+
+  tasks:
+    # ── System packages ──
+    - name: "Install KVM, libvirt, and utility packages"
+      ansible.builtin.apt:
+        name:
+          # KVM / QEMU
+          - qemu-kvm
+          - qemu-utils
+          - libvirt-daemon-system
+          - libvirt-clients
+          - libvirt-dev
+          # VM management
+          - virt-manager
+          - virtinst
+          - bridge-utils
+          # Cloud-init ISO builder
+          - genisoimage
+          # Networking tools
+          - openvswitch-switch
+          - net-tools
+          - iproute2
+          - iptables
+          - dnsmasq
+          # General utilities
+          - python3-pip
+          - python3-venv
+          - python3-libvirt
+          - python3-lxml
+          - jq
+          - curl
+          - wget
+          - git
+          - vim
+          - htop
+          - tmux
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    # ── Services ──
+    - name: "Enable and start libvirtd"
+      ansible.builtin.systemd:
+        name: libvirtd
+        state: started
+        enabled: true
+
+    - name: "Enable and start Open vSwitch"
+      ansible.builtin.systemd:
+        name: openvswitch-switch
+        state: started
+        enabled: true
+
+    # ── Kernel modules ──
+    - name: "Ensure KVM kernel modules are loaded"
+      community.general.modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - kvm
+        - kvm_intel
+        - kvm_amd
+      failed_when: false   # Only one of kvm_intel/kvm_amd will succeed
+
+    - name: "Persist KVM modules across reboots"
+      ansible.builtin.lineinfile:
+        path: /etc/modules-load.d/kvm.conf
+        line: "{{ item }}"
+        create: true
+        mode: "0644"
+      loop:
+        - kvm
+
+    # ── Nested virtualization (for Nova compute on Node-1) ──
+    - name: "Enable nested virtualization (Intel)"
+      ansible.builtin.copy:
+        content: "options kvm_intel nested=1"
+        dest: /etc/modprobe.d/kvm-nested.conf
+        mode: "0644"
+      when: "'GenuineIntel' in ansible_processor | join(' ')"
+
+    - name: "Enable nested virtualization (AMD)"
+      ansible.builtin.copy:
+        content: "options kvm_amd nested=1"
+        dest: /etc/modprobe.d/kvm-nested.conf
+        mode: "0644"
+      when: "'AuthenticAMD' in ansible_processor | join(' ')"
+
+    # ── User permissions ──
+    - name: "Add current user to libvirt and kvm groups"
+      ansible.builtin.user:
+        name: "{{ ansible_user_id }}"
+        groups:
+          - libvirt
+          - kvm
+        append: true
+
+    # ── SSH keypair (for VM access) ──
+    - name: "Generate ed25519 SSH keypair (if not present)"
+      ansible.builtin.command:
+        cmd: ssh-keygen -t ed25519 -f {{ ansible_env.HOME }}/.ssh/id_ed25519 -N ""
+        creates: "{{ ansible_env.HOME }}/.ssh/id_ed25519"
+      become: false
+
+    # ── sysctl tuning ──
+    - name: "Apply sysctl settings for IP forwarding and bridge filtering"
+      ansible.posix.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        sysctl_set: true
+        state: present
+        reload: true
+      loop:
+        - { key: 'net.ipv4.ip_forward', value: '1' }
+        - { key: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+      failed_when: false   # bridge-nf-call may not be available in WSL2
+
+    # ── Ansible collections ──
+    - name: "Install required Ansible Galaxy collections"
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection install -r {{ playbook_dir }}/../requirements.yml --force
+      become: false
+      changed_when: true
+
+    # ── Validation ──
+    - name: "Validate KVM acceleration is available"
+      ansible.builtin.command: kvm-ok
+      register: _kvm_ok
+      changed_when: false
+      failed_when: false
+
+    - name: "Report KVM status"
+      ansible.builtin.debug:
+        msg: >-
+          KVM acceleration: {{ 'AVAILABLE' if _kvm_ok.rc == 0 else 'NOT AVAILABLE (will use TCG emulation — much slower)' }}
+
+    - name: "Display summary"
+      ansible.builtin.debug:
+        msg: |
+          ══════════════════════════════════════════════════
+          ✅ Hypervisor preparation complete!
+
+          Next steps:
+            1. Log out and back in (for group membership)
+            2. Run: ansible-playbook playbooks/site.yml
+          ══════════════════════════════════════════════════

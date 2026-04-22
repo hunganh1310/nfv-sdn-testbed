@@ -1,0 +1,54 @@
+---
+# =============================================================================
+# site.yml — Master playbook: provision the entire NFV/SDN testbed
+# =============================================================================
+#
+# Usage:
+#   cd ansible/
+#   ansible-playbook playbooks/site.yml
+#
+# What it does (in order):
+#   1. Creates libvirt virtual networks (mgmt, data, ext)
+#   2. Creates and boots KVM virtual machines (node-0, node-1, node-2)
+# =============================================================================
+
+- name: "Phase 1 — Provision libvirt networks"
+  hosts: hypervisors
+  gather_facts: true
+  become: true
+
+  roles:
+    - role: libvirt_network
+
+- name: "Phase 1 — Provision KVM virtual machines"
+  hosts: hypervisors
+  gather_facts: true
+  become: true
+
+  pre_tasks:
+    - name: "Verify KVM kernel module is loaded"
+      ansible.builtin.command: lsmod
+      register: _lsmod
+      changed_when: false
+      failed_when: "'kvm' not in _lsmod.stdout"
+
+    - name: "Verify sufficient free disk space (>= 50 GB)"
+      ansible.builtin.assert:
+        that:
+          - ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='size_available') | first | int > 53687091200
+        fail_msg: "Less than 50 GB free on /. Aborting."
+        quiet: true
+
+  roles:
+    - role: libvirt_vm
+
+  post_tasks:
+    - name: "Wait for VMs to be reachable on management network"
+      ansible.builtin.wait_for:
+        host: "{{ item.interfaces | selectattr('network', 'equalto', 'mgmt') | map(attribute='ip') | first | regex_replace('/.*', '') }}"
+        port: 22
+        timeout: 300
+        state: started
+      loop: "{{ libvirt_vms }}"
+      loop_control:
+        label: "{{ item.name }}"

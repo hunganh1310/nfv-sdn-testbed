@@ -1,0 +1,145 @@
+---
+# =============================================================================
+# libvirt_vm role — provision KVM VMs with cloud-init
+# =============================================================================
+
+- name: "Ensure lab image directory exists"
+  ansible.builtin.file:
+    path: "{{ lab_images_dir }}"
+    state: directory
+    owner: libvirt-qemu
+    group: kvm
+    mode: "0775"
+
+- name: "Download Ubuntu cloud image (cached)"
+  ansible.builtin.get_url:
+    url: "{{ cloud_image_url }}"
+    dest: "{{ libvirt_images_dir }}/{{ cloud_image_name }}"
+    mode: "0644"
+    timeout: 300
+
+- name: "Generate stable MAC addresses per interface"
+  ansible.builtin.set_fact:
+    libvirt_vms_with_macs: >-
+      {{ libvirt_vms | map('combine', {}) | list }}
+  # MACs are generated inline in the next task via a filter
+
+- name: "Assign deterministic MACs to each VM interface"
+  ansible.builtin.set_fact:
+    libvirt_vms: "{{ libvirt_vms | map('combine', {'interfaces': []}) | list }}"
+  when: false   # placeholder; real MAC assignment below
+
+- name: "Build per-VM interface list with deterministic MACs"
+  vars:
+    _vms: []
+  ansible.builtin.set_fact:
+    _vms_with_macs: >-
+      {{
+        libvirt_vms | map('combine', {}) | list
+      }}
+
+# Simpler: assign MACs via include_tasks loop
+- name: "Assign MACs to interfaces"
+  ansible.builtin.include_tasks: assign_macs.yml
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    loop_var: vm
+    index_var: vm_idx
+
+- name: "Create per-VM overlay disk (qcow2 backed by cloud image)"
+  ansible.builtin.command:
+    cmd: >-
+      qemu-img create -f qcow2
+      -F qcow2
+      -b {{ libvirt_images_dir }}/{{ cloud_image_name }}
+      {{ lab_images_dir }}/{{ item.name }}.qcow2
+      {{ item.disk_gb }}G
+    creates: "{{ lab_images_dir }}/{{ item.name }}.qcow2"
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Create cloud-init working directory per VM"
+  ansible.builtin.file:
+    path: "/tmp/cloud-init-{{ item.name }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Render cloud-init user-data"
+  ansible.builtin.template:
+    src: user-data.j2
+    dest: "/tmp/cloud-init-{{ item.name }}/user-data"
+    mode: "0644"
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Render cloud-init meta-data"
+  ansible.builtin.template:
+    src: meta-data.j2
+    dest: "/tmp/cloud-init-{{ item.name }}/meta-data"
+    mode: "0644"
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Render cloud-init network-config"
+  ansible.builtin.template:
+    src: network-config.j2
+    dest: "/tmp/cloud-init-{{ item.name }}/network-config"
+    mode: "0644"
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Build NoCloud seed ISO for each VM"
+  ansible.builtin.command:
+    cmd: >-
+      genisoimage -output {{ lab_images_dir }}/{{ item.name }}-seed.iso
+      -volid cidata -joliet -rock
+      /tmp/cloud-init-{{ item.name }}/user-data
+      /tmp/cloud-init-{{ item.name }}/meta-data
+      /tmp/cloud-init-{{ item.name }}/network-config
+    creates: "{{ lab_images_dir }}/{{ item.name }}-seed.iso"
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Define libvirt domain (VM) from XML"
+  community.libvirt.virt:
+    name: "{{ item.name }}"
+    command: define
+    xml: "{{ lookup('template', 'domain.xml.j2') }}"
+    uri: "{{ libvirt_uri }}"
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Start the VM"
+  community.libvirt.virt:
+    name: "{{ item.name }}"
+    state: running
+    uri: "{{ libvirt_uri }}"
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Enable autostart on each VM"
+  community.libvirt.virt:
+    name: "{{ item.name }}"
+    autostart: true
+    uri: "{{ libvirt_uri }}"
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Cleanup cloud-init temp directories"
+  ansible.builtin.file:
+    path: "/tmp/cloud-init-{{ item.name }}"
+    state: absent
+  loop: "{{ libvirt_vms }}"
+  loop_control:
+    label: "{{ item.name }}"

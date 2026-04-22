@@ -1,0 +1,43 @@
+---
+- name: "Install Helm"
+  ansible.builtin.command: snap install helm --classic
+  failed_when: false
+
+- name: "Add ONOS Helm repository"
+  ansible.builtin.command: /snap/bin/helm repo add onosproject https://charts.onosproject.org
+
+- name: "Update Helm repositories"
+  ansible.builtin.command: /snap/bin/helm repo update
+
+- name: "Clean up old onos-classic chart directory"
+  ansible.builtin.file:
+    path: onos-classic
+    state: absent
+
+- name: "Pull ONOS Classic chart"
+  ansible.builtin.command: /snap/bin/helm pull onosproject/onos-classic --untar
+
+- name: "Fix deprecated APIs in Atomix subchart"
+  ansible.builtin.shell: |
+    find onos-classic -name "*.yaml" -exec sed -i 's/policy\/v1beta1/policy\/v1/g' {} +
+    find onos-classic -name "*.yaml" -exec sed -i 's/extensions\/v1beta1/networking.k8s.io\/v1/g' {} +
+  args:
+    executable: /bin/bash
+
+- name: "Deploy ONOS Classic from local chart"
+  ansible.builtin.command: >
+    /snap/bin/helm upgrade --install onos ./onos-classic 
+    --namespace sdn --create-namespace 
+    --set openflow.nodePort=31653 
+    --set onos.image.tag=2.7.0
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: "Wait for ONOS to be ready"
+  ansible.builtin.command: >
+    k3s kubectl wait --namespace sdn 
+    --for=condition=ready pod 
+    --selector=app.kubernetes.io/name=onos-classic 
+    --timeout=300s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml

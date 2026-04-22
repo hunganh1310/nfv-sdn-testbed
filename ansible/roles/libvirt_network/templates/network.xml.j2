@@ -1,0 +1,14 @@
+<network>
+  <name>{{ item.name }}</name>
+  <bridge name="{{ item.bridge }}" stp="on" delay="0"/>
+{% if item.forward_mode != 'none' %}
+  <forward mode="{{ item.forward_mode }}"/>
+{% endif %}
+  <ip address="{{ item.gateway }}" netmask="{{ item.netmask }}">
+{% if item.dhcp.enabled | default(false) %}
+    <dhcp>
+      <range start="{{ item.dhcp.start }}" end="{{ item.dhcp.end }}"/>
+    </dhcp>
+{% endif %}
+  </ip>
+</network>

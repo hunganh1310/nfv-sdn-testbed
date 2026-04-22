@@ -1,0 +1,56 @@
+---
+- name: "Download k3s installation script"
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /tmp/k3s-install.sh
+    mode: '0755'
+
+- name: "Install k3s on server node (node-0)"
+  ansible.builtin.command:
+    cmd: /tmp/k3s-install.sh
+  environment:
+    INSTALL_K3S_EXEC: "server --cluster-init --disable traefik --flannel-backend=host-gw"
+  when: inventory_hostname in groups['k3s_server']
+  changed_when: true
+
+- name: "Wait for k3s token to be generated on server"
+  ansible.builtin.wait_for:
+    path: /var/lib/rancher/k3s/server/node-token
+    state: present
+  when: inventory_hostname in groups['k3s_server']
+
+- name: "Read k3s token from server"
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_b64
+  when: inventory_hostname in groups['k3s_server']
+
+- name: "Store k3s token as a fact"
+  ansible.builtin.set_fact:
+    k3s_token: "{{ hostvars['node-0'].k3s_token_b64['content'] | b64decode | trim }}"
+  when: inventory_hostname in groups['k3s_agent']
+
+- name: "Install k3s on agent nodes (node-1, node-2)"
+  ansible.builtin.command:
+    cmd: /tmp/k3s-install.sh
+  environment:
+    K3S_URL: "https://10.10.10.10:6443"
+    K3S_TOKEN: "{{ k3s_token }}"
+  when: inventory_hostname in groups['k3s_agent']
+  changed_when: true
+
+- name: "Fetch kubeconfig from server"
+  ansible.builtin.fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ lookup('env', 'HOME') }}/.kube/config"
+    flat: true
+  when: inventory_hostname in groups['k3s_server']
+
+- name: "Update kubeconfig to point to node-0"
+  ansible.builtin.replace:
+    path: "{{ lookup('env', 'HOME') }}/.kube/config"
+    regexp: '127\.0\.0\.1'
+    replace: '10.10.10.10'
+  delegate_to: localhost
+  become: false
+  when: inventory_hostname in groups['k3s_server']
