@@ -1,0 +1,25 @@
+---
+- name: "Install Open vSwitch"
+  ansible.builtin.apt:
+    name: openvswitch-switch
+    state: present
+    update_cache: yes
+
+- name: "Ensure OVS service is running"
+  ansible.builtin.systemd:
+    name: openvswitch-switch
+    state: started
+    enabled: true
+
+- name: "Create OVS bridge br-data"
+  ansible.builtin.command: ovs-vsctl --may-exist add-br br-data
+
+- name: "Add data interface (ens4) to br-data"
+  ansible.builtin.command: ovs-vsctl --may-exist add-port br-data ens4
+
+- name: "Flush IP from ens4 (now managed by OVS)"
+  ansible.builtin.command: ip addr flush dev ens4
+  failed_when: false
+
+- name: "Connect OVS br-data to ONOS SDN Controller"
+  ansible.builtin.command: ovs-vsctl set-controller br-data tcp:10.10.10.10:31653

@@ -1,0 +1,19 @@
+---
+- name: "Phase 5 — Deploy Monitoring (Prometheus & Grafana)"
+  hosts: k3s_server
+  become: true
+  tasks:
+    - name: "Add Prometheus Community Helm repository"
+      ansible.builtin.command: /snap/bin/helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+
+    - name: "Update Helm repositories"
+      ansible.builtin.command: /snap/bin/helm repo update
+
+    - name: "Deploy kube-prometheus-stack"
+      ansible.builtin.command: >
+        /snap/bin/helm upgrade --install monitoring prometheus-community/kube-prometheus-stack 
+        --namespace monitoring --create-namespace 
+        --set grafana.service.type=NodePort 
+        --set grafana.service.nodePort=32000
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml

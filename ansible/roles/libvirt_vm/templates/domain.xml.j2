@@ -1,3 +1,90 @@
+<domain type='kvm'>
+  <name>{{ item.name }}</name>
+  <metadata>
+    <lab:instance xmlns:lab="https://nfv-sdn-testbed/">
+      <lab:role>{{ item.role }}</lab:role>
+    </lab:instance>
+  </metadata>
+
+  <memory unit='MiB'>{{ item.memory_mb }}</memory>
+  <currentMemory unit='MiB'>{{ item.memory_mb }}</currentMemory>
+  <vcpu placement='static'>{{ item.vcpus }}</vcpu>
+
+  <os>
+    <type arch='x86_64' machine='pc-q35-6.2'>hvm</type>
+    <boot dev='hd'/>
+  </os>
+
+  <features>
+    <acpi/>
+    <apic/>
+  </features>
+
+  <!-- Host-passthrough gives nested-virt (needed for Nova compute on Node-1) -->
+  <cpu mode='host-passthrough' check='none' migratable='on'>
+    <topology sockets='1' dies='1' cores='{{ item.vcpus }}' threads='1'/>
+  </cpu>
+
+  <clock offset='utc'>
+    <timer name='rtc' tickpolicy='catchup'/>
+    <timer name='pit' tickpolicy='delay'/>
+    <timer name='hpet' present='no'/>
+  </clock>
+
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+
+  <devices>
+    <!-- ── Disk: qcow2 overlay backed by cloud image ── -->
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2' discard='unmap'/>
+      <source file='{{ lab_images_dir }}/{{ item.name }}.qcow2'/>
+      <target dev='vda' bus='virtio'/>
+    </disk>
+
+    <!-- ── Cloud-init seed ISO (NoCloud datasource) ── -->
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='{{ lab_images_dir }}/{{ item.name }}-seed.iso'/>
+      <target dev='sda' bus='sata'/>
+      <readonly/>
+    </disk>
+
+    <!-- ── Network interfaces (one per bridge) ── -->
+{% for iface in item.interfaces %}
+    <interface type='network'>
+      <source network='{{ iface.network }}'/>
+      <mac address='{{ iface.mac }}'/>
+      <model type='virtio'/>
+    </interface>
+{% endfor %}
+
+    <!-- ── Serial console (for virsh console access) ── -->
+    <serial type='pty'>
+      <target type='isa-serial' port='0'>
+        <model name='isa-serial'/>
+      </target>
+    </serial>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+
+    <!-- ── VNC graphics (for virt-manager) ── -->
+    <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'>
+      <listen type='address' address='127.0.0.1'/>
+    </graphics>
+    <video>
+      <model type='virtio' heads='1' primary='yes'/>
+    </video>
+
+    <!-- ── Guest agent channel ── -->
+    <channel type='unix'>
+      <target type='virtio' name='org.qemu.guest_agent.0'/>
+    </channel>
+
+    <!-- ── RNG for faster entropy ── -->
+    <rng model='virtio'>
       <backend model='random'>/dev/urandom</backend>
     </rng>
   </devices>

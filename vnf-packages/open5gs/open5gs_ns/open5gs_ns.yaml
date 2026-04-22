@@ -1,0 +1,24 @@
+nsd:
+  nsd:
+  - id: open5gs_ns
+    name: open5gs_ns
+    description: "Open5GS Network Service"
+    version: '1.0'
+    vnfd-id:
+    - open5gs_knf
+    df:
+    - id: default-df
+      vnf-profile:
+      - id: '1'
+        vnfd-id: open5gs_knf
+        virtual-link-connectivity:
+        - constituent-cpd-id:
+          - constituent-base-element-id: '1'
+            constituent-cpd-id: mgmt-ext
+          virtual-link-profile-id: mgmtnet
+      virtual-link-profile:
+      - id: mgmtnet
+        virtual-link-desc-id: mgmtnet
+    virtual-link-desc:
+    - id: mgmtnet
+      mgmt-network: true
