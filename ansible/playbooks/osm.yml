@@ -1,0 +1,24 @@
+---
+- name: "Phase 3 — Install Open Source MANO (OSM)"
+  hosts: k3s_server
+  become: true
+  tasks:
+    - name: Download OSM installer
+      ansible.builtin.get_url:
+        url: https://osm-download.etsi.org/ftp/osm-14.0-fourteen/install_osm.sh
+        dest: /tmp/install_osm.sh
+        mode: '0755'
+
+    - name: Install juju and dependencies (since we are on Ubuntu 22.04)
+      ansible.builtin.apt:
+        name: snapd
+        state: present
+
+    - name: Install OSM (this will take a while, output is logged)
+      ansible.builtin.shell: |
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+        /tmp/install_osm.sh -y --charmed --k8s /etc/rancher/k3s/k3s.yaml > /var/log/osm-install.log 2>&1
+      args:
+        creates: /etc/osm/osm-config.yaml # or whatever file indicates OSM is installed. we can just let it run.
+      async: 3600
+      poll: 15

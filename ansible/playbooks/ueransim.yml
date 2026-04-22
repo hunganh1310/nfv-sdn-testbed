@@ -1,0 +1,57 @@
+---
+- name: "Phase 4 — Deploy UERANSIM (gNodeB & UE)"
+  hosts: k3s_server
+  become: true
+  tasks:
+    - name: "Create UERANSIM values for gNodeB"
+      ansible.builtin.copy:
+        dest: /tmp/gnb-values.yaml
+        content: |
+          podAnnotations:
+            k8s.v1.cni.cncf.io/networks: "sdn/data"
+          config:
+            mcc: "999"
+            mnc: "70"
+            tac: 1
+            nci: "0x000000010"
+            idLength: 32
+            slicing:
+              - sst: 1
+                sd: 1
+            amfConfigs:
+              - address: "open5gs-amf-ngap.core.svc.cluster.local"
+                port: 38412
+
+    - name: "Deploy UERANSIM gNodeB"
+      ansible.builtin.command: >
+        /snap/bin/helm upgrade --install ueransim-gnb oci://registry-1.docker.io/gradiantcharts/ueransim-gnb 
+        --namespace ueransim --create-namespace --version 0.2.6 -f /tmp/gnb-values.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: "Create UERANSIM values for UE"
+      ansible.builtin.copy:
+        dest: /tmp/ue-values.yaml
+        content: |
+          config:
+            supi: "imsi-999700000000001"
+            mcc: "999"
+            mnc: "70"
+            key: "465B5CE8B199B49FAA5F0A2EE238A6BC"
+            opType: "OPC"
+            op: "E8ED289DEBA952E4283B54E88E6183CA"
+            gnbSearchList:
+              - "ueransim-gnb.ueransim.svc.cluster.local"
+            sessions:
+              - type: "IPv4"
+                apn: "internet"
+                slice:
+                  sst: 1
+                  sd: 1
+
+    - name: "Deploy UERANSIM UE"
+      ansible.builtin.command: >
+        /snap/bin/helm upgrade --install ueransim-ue oci://registry-1.docker.io/gradiantcharts/ueransim-ues 
+        --namespace ueransim --version 0.1.2 -f /tmp/ue-values.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml

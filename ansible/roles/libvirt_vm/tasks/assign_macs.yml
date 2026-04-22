@@ -1,0 +1,40 @@
+---
+# =============================================================================
+# assign_macs.yml — Generate deterministic MAC addresses per VM interface
+#
+# Called once per VM via include_tasks loop.
+# Uses a hash of (lab_name + vm.name + loop_index) to produce a stable
+# MAC address with the KVM-conventional 52:54:00 prefix.
+# =============================================================================
+
+- name: "Build interface list with MACs for {{ vm.name }}"
+  ansible.builtin.set_fact:
+    _ifaces_with_mac: >-
+      {{
+        _ifaces_with_mac | default([]) + [
+          iface_item | combine({
+            'mac': '52:54:00'
+                   ~ ':' ~ ((lab_name ~ vm.name ~ iface_idx | string) | hash('md5'))[0:2]
+                   ~ ':' ~ ((lab_name ~ vm.name ~ iface_idx | string) | hash('md5'))[2:4]
+                   ~ ':' ~ ((lab_name ~ vm.name ~ iface_idx | string) | hash('md5'))[4:6]
+          })
+        ]
+      }}
+  loop: "{{ vm.interfaces }}"
+  loop_control:
+    loop_var: iface_item
+    index_var: iface_idx
+    label: "{{ vm.name }}:{{ iface_item.network }}"
+
+- name: "Merge MACs back into libvirt_vms for {{ vm.name }}"
+  ansible.builtin.set_fact:
+    libvirt_vms: >-
+      {{
+        libvirt_vms[:vm_idx]
+        + [ vm | combine({'interfaces': _ifaces_with_mac}) ]
+        + libvirt_vms[vm_idx + 1:]
+      }}
+
+- name: "Reset temporary interface accumulator"
+  ansible.builtin.set_fact:
+    _ifaces_with_mac: []

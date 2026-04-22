@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# k8s.yml — Playbook to install k3s Kubernetes cluster on VMs
+# =============================================================================
+#
+# Usage:
+#   cd ansible/
+#   ansible-playbook playbooks/k8s.yml -i inventory/vms.yml
+# =============================================================================
+
+- name: "Phase 1 — Install K3s Kubernetes Cluster"
+  hosts: k3s_cluster
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: k3s

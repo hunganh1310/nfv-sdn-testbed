@@ -43,3 +43,64 @@ libvirt_networks:
       start: 10.10.30.100
       end:   10.10.30.200
     autostart: true
+
+# -----------------------------------------------------------------------------
+# Cloud image (base) settings
+# -----------------------------------------------------------------------------
+cloud_image_url: "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+cloud_image_name: "jammy-server-cloudimg-amd64.img"
+libvirt_images_dir: "/var/lib/libvirt/images"
+lab_images_dir: "/var/lib/libvirt/images/lab"
+
+# -----------------------------------------------------------------------------
+# Default user created inside every VM
+# -----------------------------------------------------------------------------
+vm_user: ubuntu
+vm_ssh_pubkey: "{{ lookup('file', lookup('env','HOME') + '/.ssh/id_ed25519.pub') }}"
+
+# -----------------------------------------------------------------------------
+# VMs to provision
+# -----------------------------------------------------------------------------
+libvirt_vms:
+
+  - name: node-0
+    vcpus: 4
+    memory_mb: 8192
+    disk_gb: 40
+    role: controller
+    interfaces:
+      - network: mgmt
+        ip: 10.10.10.10/24
+        gateway: 10.10.10.1
+      - network: data
+        ip: 10.10.20.10/24
+      - network: ext
+        ip: 10.10.30.10/24
+
+  - name: node-1
+    vcpus: 4
+    memory_mb: 8192
+    disk_gb: 40
+    role: compute
+    interfaces:
+      - network: mgmt
+        ip: 10.10.10.11/24
+        gateway: 10.10.10.1
+      - network: data
+        ip: 10.10.20.11/24
+      - network: ext
+        ip: 10.10.30.11/24
+
+  - name: node-2
+    vcpus: 2
+    memory_mb: 4096
+    disk_gb: 30
+    role: sdn-monitoring
+    interfaces:
+      - network: mgmt
+        ip: 10.10.10.12/24
+        gateway: 10.10.10.1
+      - network: data
+        ip: 10.10.20.12/24
+      - network: ext
+        ip: 10.10.30.12/24
